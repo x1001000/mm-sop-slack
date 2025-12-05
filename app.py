@@ -40,16 +40,44 @@ def message_hello(message, say):
     # say() sends a message to the channel where the event was triggered
     # Use the original message's thread_ts if it exists, otherwise use the message's ts to start a new thread
     thread_ts = message.get("thread_ts") or message["ts"]
-    say(
-        blocks=[
-            {
+
+    # Slack has a 3000 character limit for text in blocks
+    # If response is too long, split it into multiple blocks or send as plain text
+    MAX_BLOCK_LENGTH = 3000
+
+    if len(response_text) <= MAX_BLOCK_LENGTH:
+        # Response fits in a single block
+        say(
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": response_text},
+                }
+            ],
+            text=response_text,
+            thread_ts=thread_ts
+        )
+    else:
+        # Response is too long, split into multiple blocks
+        blocks = []
+        remaining_text = response_text
+
+        while remaining_text:
+            # Take up to MAX_BLOCK_LENGTH characters
+            chunk = remaining_text[:MAX_BLOCK_LENGTH]
+            remaining_text = remaining_text[MAX_BLOCK_LENGTH:]
+
+            # Add block for this chunk
+            blocks.append({
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": response_text},
-            }
-        ],
-        text=response_text,
-        thread_ts=thread_ts  # Keep conversation in thread
-    )
+                "text": {"type": "mrkdwn", "text": chunk}
+            })
+
+        say(
+            blocks=blocks,
+            text=response_text[:MAX_BLOCK_LENGTH] + "..." if len(response_text) > MAX_BLOCK_LENGTH else response_text,
+            thread_ts=thread_ts
+        )
 
 from google import genai
 from google.genai import types
