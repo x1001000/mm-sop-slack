@@ -1,23 +1,16 @@
-# Use Python 3.11 slim image for smaller size
-FROM python:3.11-slim
+# Read the doc: https://huggingface.co/docs/hub/spaces-sdks-docker
+# you will also find guides on how best to write your Dockerfile
 
-# Set working directory
+FROM python:3.9
+
+RUN useradd -m -u 1000 user
+USER user
+ENV PATH="/home/user/.local/bin:$PATH"
+
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
+COPY --chown=user ./requirements.txt requirements.txt
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY app.py .
-
-# Environment variables will be set in HF Spaces settings
-# They are: GEMINI_API_KEY, SLACK_APP_TOKEN, SLACK_BOT_TOKEN
-
-# Expose port (optional, mainly for HF Spaces compatibility)
-EXPOSE 7860
-
-# Run the application
+COPY --chown=user . /app
 CMD ["python", "app.py"]
