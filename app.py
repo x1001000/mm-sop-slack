@@ -13,18 +13,42 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 # Initializes your app with your bot token
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
+# Session-based history storage: {session_id: [{"role": "user"/"assistant", "content": "..."}]}
+session_histories = {}
+
 @app.message()
-def message_hello(question, say):
-    ans = answer(message=question, history=[])
+def message_hello(message, say):
+    # Extract session identifier using thread_ts or create new session with channel+ts
+    session_id = message.get("thread_ts") or f"{message['channel']}_{message['ts']}"
+
+    # Get or initialize history for this session
+    if session_id not in session_histories:
+        session_histories[session_id] = []
+
+    history = session_histories[session_id]
+    user_message = message["text"]
+
+    # Generate answer with session history
+    response_text = ""
+    for chunk in answer(message=user_message, history=history):
+        response_text += chunk
+
+    # Update history with user message and assistant response
+    history.append({"role": "user", "content": user_message})
+    history.append({"role": "assistant", "content": response_text})
+
     # say() sends a message to the channel where the event was triggered
+    # Use the original message's thread_ts if it exists, otherwise use the message's ts to start a new thread
+    thread_ts = message.get("thread_ts") or message["ts"]
     say(
         blocks=[
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": ans},
+                "text": {"type": "mrkdwn", "text": response_text},
             }
         ],
-        text=ans,
+        text=response_text,
+        thread_ts=thread_ts  # Keep conversation in thread
     )
 
 from google import genai
@@ -45,18 +69,20 @@ def answer(message: str, history: list[dict]):
 
     Args:
         message: The current input message from the user.
-        history: Chat history in Gradio messages format.
+        history: Chat history as list of dicts with "role" and "content" keys.
 
     Yields:
         A stream of strings with the answer.
     """
-    # Convert Gradio messages format to Gemini API format
+    # Convert history to Gemini API format
     gemini_contents = []
     for msg in history:
         if msg["role"] == "user":
             gemini_contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
         elif msg["role"] == "assistant":
             gemini_contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
+
+    # Add current message
     gemini_contents.append({"role": "user", "parts": [{"text": message}]})
 
     # Stream the response for better UX
