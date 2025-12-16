@@ -43,6 +43,7 @@ def message_hello(message, say):
 
     # Get or initialize history for this session
     if session_id not in session_histories:
+        print(f"[INFO] Creating new session for {session_id}")
         session_histories[session_id] = {"history": [], "last_access": time.time()}
 
     session = session_histories[session_id]
@@ -50,16 +51,14 @@ def message_hello(message, say):
     history = session["history"]
     user_message = message["text"]
 
-    print(f"[INFO] Session {session_id[:20]}... has {len(history)} messages in history")
+    print(f"[INFO] Session {session_id} has {len(history)} messages in history")
 
     # Generate answer with session history
-    response_text = ""
-    for chunk in answer(message=user_message, history=history):
-        response_text += chunk
+    response_text = answer(message=user_message, history=history)
 
-    # Update history with user message and assistant response
+    # Update history with user message and model response
     history.append({"role": "user", "content": user_message})
-    history.append({"role": "assistant", "content": response_text})
+    history.append({"role": "model", "content": response_text})
 
     # Trim history to keep only the last MAX_HISTORY_LENGTH messages
     if len(history) > MAX_HISTORY_LENGTH:
@@ -112,16 +111,7 @@ from google import genai
 from google.genai import types
 client = genai.Client()
 
-def get_file_search_store():
-    """Get the file search store fresh each time in case it's updated."""
-    file_search_stores = client.file_search_stores.list()
-    if not file_search_stores:
-        raise ValueError("No file search stores found. Please create one in the Google AI Studio.")
-    store = file_search_stores[-1]  # Use the most recently created store
-    print(f"[INFO] Using file search store: {store.name}")
-    return store
-
-def answer(message: str, history: list[dict]):
+def answer(message: str, history: list[dict]) -> str:
     """Answer questions about MacroMicro internal Standard Operating Procedures (SOP).
 
     Uses FileSearch to retrieve relevant information from the SOP documentation
@@ -131,27 +121,24 @@ def answer(message: str, history: list[dict]):
         message: The current input message from the user.
         history: Chat history as list of dicts with "role" and "content" keys.
 
-    Yields:
-        A stream of strings with the answer.
+    Returns:
+        The answer as a string.
     """
     # Convert history to Gemini API format
     gemini_contents = []
     for msg in history:
         if msg["role"] == "user":
             gemini_contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
-        elif msg["role"] == "assistant":
+        elif msg["role"] == "model":
             gemini_contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
 
     # Add current message
     gemini_contents.append({"role": "user", "parts": [{"text": message}]})
 
-    print(f"[INFO] Processing message: {message[:50]}...")
+    print(f"Q: {message[:50]}")
 
-    # Get fresh file search store each time
-    file_search_store = get_file_search_store()
-
-    # Stream the response for better UX
-    response_stream = client.models.generate_content_stream(
+    # Generate the response
+    response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=gemini_contents,
         config=types.GenerateContentConfig(
@@ -159,26 +146,15 @@ def answer(message: str, history: list[dict]):
             tools=[
                 types.Tool(
                     file_search=types.FileSearch(
-                        file_search_store_names=[file_search_store.name]
+                        file_search_store_names=[client.file_search_stores.list()[-1].name]
                     )
                 )
             ]
         )
     )
 
-    # Stream response chunks as they arrive
-    print("[INFO] Streaming response:")
-    for chunk in response_stream:
-        try:
-            if chunk.text:
-                print(chunk.text, end="", flush=True)
-                yield chunk.text
-        except ValueError:
-            # This error is expected if the chunk contains a function call instead of text.
-            # The Gemini API handles the tool call automatically; we just need to ignore this chunk.
-            print("[WARN] Ignoring chunk with function call.")
-            continue
-    print("\n[INFO] Response complete.")
+    print(f"A: {response.text[:50] if response.text else response.text}")
+    return response.text or ""
 
 if __name__ == "__main__":
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
