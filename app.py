@@ -83,11 +83,14 @@ from google import genai
 from google.genai import types
 client = genai.Client()
 
-# Get the file search store
-file_search_stores = client.file_search_stores.list()
-if not file_search_stores:
-    raise ValueError("No file search stores found. Please create one in the Google AI Studio.")
-file_search_store = file_search_stores[0]
+def get_file_search_store():
+    """Get the file search store fresh each time in case it's updated."""
+    file_search_stores = client.file_search_stores.list()
+    if not file_search_stores:
+        raise ValueError("No file search stores found. Please create one in the Google AI Studio.")
+    store = file_search_stores[-1]  # Use the most recently created store
+    print(f"[INFO] Using file search store: {store.name}")
+    return store
 
 def answer(message: str, history: list[dict]):
     """Answer questions about MacroMicro internal Standard Operating Procedures (SOP).
@@ -113,6 +116,11 @@ def answer(message: str, history: list[dict]):
     # Add current message
     gemini_contents.append({"role": "user", "parts": [{"text": message}]})
 
+    print(f"[INFO] Processing message: {message[:50]}...")
+
+    # Get fresh file search store each time
+    file_search_store = get_file_search_store()
+
     # Stream the response for better UX
     response_stream = client.models.generate_content_stream(
         model="gemini-2.5-flash",
@@ -130,15 +138,18 @@ def answer(message: str, history: list[dict]):
     )
 
     # Stream response chunks as they arrive
+    print("[INFO] Streaming response:")
     for chunk in response_stream:
         try:
             if chunk.text:
+                print(chunk.text, end="", flush=True)
                 yield chunk.text
         except ValueError:
             # This error is expected if the chunk contains a function call instead of text.
             # The Gemini API handles the tool call automatically; we just need to ignore this chunk.
-            print("Ignoring chunk with function call.")
+            print("[WARN] Ignoring chunk with function call.")
             continue
+    print("\n[INFO] Response complete.")
 
 if __name__ == "__main__":
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
