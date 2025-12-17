@@ -1,3 +1,11 @@
+# /// script
+# dependencies = [
+#   "python-dotenv",
+#   "slack-bolt",
+#   "google-genai",
+# ]
+# ///
+
 from dotenv import load_dotenv
 load_dotenv()
 
