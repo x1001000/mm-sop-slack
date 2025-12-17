@@ -33,15 +33,13 @@ def cleanup_old_sessions():
     if expired_sessions:
         print(f"[INFO] Cleaned up {len(expired_sessions)} expired sessions")
 
-@app.message()
-def message_hello(message, say):
-    # Cleanup old sessions on each request (lazy cleanup)
+def handle_message(event, say):
+    """Shared handler for both @mentions and direct messages."""
     cleanup_old_sessions()
 
-    # Extract session identifier using thread_ts or create new session with channel+ts
-    session_id = message.get("thread_ts") or f"{message['channel']}_{message['ts']}"
+    session_id = event.get("thread_ts") or f"{event['channel']}_{event['ts']}"
+    session_id = session_id.split('.')[0]  # Normalize session_id
 
-    # Get or initialize history for this session
     if session_id not in session_histories:
         print(f"[INFO] Creating new session for {session_id}")
         session_histories[session_id] = {"history": [], "last_access": time.time()}
@@ -49,63 +47,45 @@ def message_hello(message, say):
     session = session_histories[session_id]
     session["last_access"] = time.time()
     history = session["history"]
-    user_message = message["text"]
+    user_message = event["text"]
 
-    print(f"[INFO] Session {session_id} has {len(history)} messages in history")
+    # print(f"[INFO] Session {session_id} has {len(history)} messages in history")
 
-    # Generate answer with session history
     response_text = answer(message=user_message, history=history)
 
-    # Update history with user message and model response
     history.append({"role": "user", "content": user_message})
     history.append({"role": "model", "content": response_text})
 
-    # Trim history to keep only the last MAX_HISTORY_LENGTH messages
     if len(history) > MAX_HISTORY_LENGTH:
         session["history"] = history[-MAX_HISTORY_LENGTH:]
         print(f"[INFO] Trimmed history to {MAX_HISTORY_LENGTH} messages")
 
-    # say() sends a message to the channel where the event was triggered
-    # Use the original message's thread_ts if it exists, otherwise use the message's ts to start a new thread
-    thread_ts = message.get("thread_ts") or message["ts"]
-
-    # Slack has a 3000 character limit for text in blocks
-    # If response is too long, split it into multiple blocks or send as plain text
+    thread_ts = event.get("thread_ts") or event["ts"]
     MAX_BLOCK_LENGTH = 3000
 
     if len(response_text) <= MAX_BLOCK_LENGTH:
-        # Response fits in a single block
         say(
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": response_text},
-                }
-            ],
+            blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": response_text}}],
             text=response_text,
             thread_ts=thread_ts
         )
     else:
-        # Response is too long, split into multiple blocks
         blocks = []
         remaining_text = response_text
-
         while remaining_text:
-            # Take up to MAX_BLOCK_LENGTH characters
             chunk = remaining_text[:MAX_BLOCK_LENGTH]
             remaining_text = remaining_text[MAX_BLOCK_LENGTH:]
-
-            # Add block for this chunk
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": chunk}
-            })
-
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": chunk}})
         say(
             blocks=blocks,
-            text=response_text[:MAX_BLOCK_LENGTH] + "..." if len(response_text) > MAX_BLOCK_LENGTH else response_text,
+            text=response_text[:MAX_BLOCK_LENGTH] + "...",
             thread_ts=thread_ts
         )
+
+
+# Register the same handler for both event types
+app.event("app_mention")(handle_message)
+app.message()(handle_message)
 
 from google import genai
 from google.genai import types
