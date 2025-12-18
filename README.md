@@ -1,3 +1,12 @@
+---
+title: Mm Sop Slack
+emoji: 👁
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # MacroMicro SOP Slack Bot
 
 A Slack bot that answers questions about MacroMicro internal Standard Operating Procedures using Google Gemini AI with FileSearch.
