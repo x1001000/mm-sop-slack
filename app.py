@@ -93,7 +93,7 @@ def handle_message(event, say):
 
 # Register the same handler for both event types
 app.event("app_mention")(handle_message)
-app.message()(handle_message)
+app.event("message")(handle_message)
 
 from google import genai
 from google.genai import types
@@ -145,4 +145,4 @@ def answer(message: str, history: list[dict]) -> str:
     return response.text or ""
 
 if __name__ == "__main__":
-    SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
+    SocketModeHandler(app, os.environ.get("SLACK_APP_TOKEN")).start()
