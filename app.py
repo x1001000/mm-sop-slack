@@ -99,6 +99,12 @@ from google import genai
 from google.genai import types
 client = genai.Client()
 
+def file_search_store():
+    file_search_stores = client.file_search_stores.list()
+    for file_search_store in file_search_stores[::-1]:
+        if "mm-sop" in file_search_store.name:
+            return file_search_store
+
 def answer(message: str, history: list[dict]) -> str:
     """Answer questions about MacroMicro internal Standard Operating Procedures (SOP).
 
@@ -134,7 +140,7 @@ def answer(message: str, history: list[dict]) -> str:
             tools=[
                 types.Tool(
                     file_search=types.FileSearch(
-                        file_search_store_names=[client.file_search_stores.list()[-1].name]
+                        file_search_store_names=[file_search_store().name]
                     )
                 )
             ]
