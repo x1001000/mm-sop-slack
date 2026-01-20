@@ -3,6 +3,7 @@
 #   "python-dotenv",
 #   "slack-bolt",
 #   "google-genai",
+#   "requests",
 # ]
 # ///
 
@@ -11,6 +12,7 @@ load_dotenv()
 
 import os
 import time
+import requests
 
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -41,6 +43,17 @@ def cleanup_old_sessions():
     if expired_sessions:
         print(f"[INFO] Cleaned up {len(expired_sessions)} expired sessions")
 
+def log_to_sheet(user: str, question: str, answer: str):
+    """Log user, question and answer to Google Sheet via web app."""
+    sheet_url = os.environ.get("GOOGLE_SHEET_WEBAPP_URL")
+    if not sheet_url:
+        print("[WARN] GOOGLE_SHEET_WEBAPP_URL not set, skipping log")
+        return
+    try:
+        requests.post(sheet_url, json={"user": user, "question": question, "answer": answer}, timeout=5)
+    except Exception as e:
+        print(f"[ERROR] Failed to log to sheet: {e}")
+
 def handle_message(event, say):
     """Shared handler for both @mentions and direct messages."""
     cleanup_old_sessions()
@@ -60,6 +73,8 @@ def handle_message(event, say):
     # print(f"[INFO] Session {session_id} has {len(history)} messages in history")
 
     response_text = answer(message=user_message, history=history)
+
+    log_to_sheet(user=event.get("user", ""), question=user_message, answer=response_text)
 
     history.append({"role": "user", "content": user_message})
     history.append({"role": "model", "content": response_text})
