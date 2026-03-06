@@ -44,6 +44,12 @@ def cleanup_old_sessions():
     if expired_sessions:
         print(f"[INFO] Cleaned up {len(expired_sessions)} expired sessions")
 
+def system_instruction():
+    url = os.environ.get("SYSTEM_PROMPT_URL")
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.text
+
 def markdown_to_slack(text: str) -> str:
     """Convert standard Markdown to Slack mrkdwn format."""
     # Links: [text](url) -> <url|text>
@@ -166,7 +172,7 @@ def answer(message: str, history: list[dict]) -> str:
         model="gemini-3-flash-preview",
         contents=gemini_contents,
         config=types.GenerateContentConfig(
-            system_instruction="你的任務：依據FileSearch工具檢索到的資料，詳細回答MacroMicro團隊內部標準作業流程（SOP）相關問題",
+            system_instruction=system_instruction(),
             tools=[
                 types.Tool(
                     file_search=types.FileSearch(
