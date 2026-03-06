@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import re
 import time
 import requests
 
@@ -42,6 +43,19 @@ def cleanup_old_sessions():
         del session_histories[sid]
     if expired_sessions:
         print(f"[INFO] Cleaned up {len(expired_sessions)} expired sessions")
+
+def markdown_to_slack(text: str) -> str:
+    """Convert standard Markdown to Slack mrkdwn format."""
+    # Links: [text](url) -> <url|text>
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<\2|\1>', text)
+    # Bold+italic: ***text*** -> *_text_*
+    text = re.sub(r'\*{3}(.+?)\*{3}', r'*_\1_*', text)
+    # Bold: **text** -> *text*
+    text = re.sub(r'\*{2}(.+?)\*{2}', r'*\1*', text)
+    # Headers: # text -> *text*
+    text = re.sub(r'^#{1,6}\s+(.+)$', r'*\1*', text, flags=re.MULTILINE)
+    return text
+
 
 def log_to_sheet(user: str, question: str, answer: str):
     """Log user, question and answer to Google Sheet via web app."""
@@ -85,6 +99,7 @@ def handle_message(event, say):
 
     thread_ts = event.get("thread_ts") or event["ts"]
     MAX_BLOCK_LENGTH = 3000
+    response_text = markdown_to_slack(response_text)
 
     if len(response_text) <= MAX_BLOCK_LENGTH:
         say(
@@ -148,7 +163,7 @@ def answer(message: str, history: list[dict]) -> str:
 
     # Generate the response
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3-flash-preview",
         contents=gemini_contents,
         config=types.GenerateContentConfig(
             system_instruction="你的任務：依據FileSearch工具檢索到的資料，詳細回答MacroMicro團隊內部標準作業流程（SOP）相關問題",
