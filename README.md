@@ -1,22 +1,16 @@
----
-title: Mm Sop Slack
-emoji: 👁
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
----
-
 # MacroMicro SOP Slack Bot
 
 A Slack bot that answers questions about MacroMicro internal Standard Operating Procedures using Google Gemini AI with FileSearch.
 
 ## Features
 
-- Session-based conversation history
-- Thread-based Slack conversations
-- Real-time streaming responses
-- Google Gemini AI with FileSearch integration
+- Google Gemini AI (gemini-3-flash-preview) with FileSearch for SOP document retrieval
+- Thread-based Slack conversations with session history
+- Markdown-to-Slack mrkdwn format conversion
+- Remote system instruction fetched from URL
+- Q&A logging to Google Sheets via web app
+- Automatic session cleanup after 1 hour of inactivity
+- Long response chunking for Slack block limits
 
 ## Deployment on Hugging Face Spaces
 
@@ -45,6 +39,8 @@ A Slack bot that answers questions about MacroMicro internal Standard Operating 
      - `GEMINI_API_KEY`: Your Google Gemini API key
      - `SLACK_APP_TOKEN`: Your Slack App Token (starts with `xapp-`)
      - `SLACK_BOT_TOKEN`: Your Slack Bot Token (starts with `xoxb-`)
+     - `SYSTEM_PROMPT_URL`: URL to fetch system instruction text
+     - `GOOGLE_SHEET_WEBAPP_URL`: (Optional) Google Apps Script web app URL for Q&A logging
 
 4. **Build and Deploy:**
    - The Space will automatically build and deploy
@@ -65,6 +61,8 @@ pip install -r requirements.txt
 # GEMINI_API_KEY=your_key_here
 # SLACK_APP_TOKEN=xapp-...
 # SLACK_BOT_TOKEN=xoxb-...
+# SYSTEM_PROMPT_URL=https://...
+# GOOGLE_SHEET_WEBAPP_URL=https://...  (optional)
 
 # Run the bot
 python app.py
@@ -73,6 +71,6 @@ python app.py
 ## Important Notes
 
 - This bot uses Socket Mode, which maintains a persistent WebSocket connection to Slack
-- The FileSearch store must be pre-configured in Google AI Studio
-- Session histories are stored in memory and will reset on restart
-- For production use, consider adding persistent storage for conversation history
+- The FileSearch store must be pre-configured in Google AI Studio with a name containing `mm-sop`
+- Session histories are stored in memory and will reset on restart (TTL: 1 hour, max 20 messages per session)
+- System instruction is fetched from a remote URL on each request, allowing updates without redeployment
