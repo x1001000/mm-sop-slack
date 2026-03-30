@@ -1,76 +1,55 @@
 # MacroMicro SOP Slack Bot
 
-A Slack bot that answers questions about MacroMicro internal Standard Operating Procedures using Google Gemini AI with FileSearch.
+Slack bot that answers SOP questions using Google Gemini AI with FileSearch over our internal documentation.
 
-## Features
+## How It Works
 
-- Google Gemini AI (gemini-3-flash-preview) with FileSearch for SOP document retrieval
-- Thread-based Slack conversations with session history
-- Markdown-to-Slack mrkdwn format conversion
-- Remote system instruction fetched from URL
-- Q&A logging to Google Sheets via web app
-- Automatic session cleanup after 1 hour of inactivity
-- Long response chunking for Slack block limits
+1. A user mentions the bot or DMs it in Slack
+2. The bot receives the message via **Socket Mode** (persistent WebSocket, no public URL needed)
+3. It fetches the **system instruction** from a remote URL (so you can update bot behavior without redeploying)
+4. It calls **Gemini (gemini-3-flash-preview)** with FileSearch to retrieve relevant SOP documents and generate an answer
+5. The response is converted from Markdown to Slack mrkdwn and posted back in the thread
 
-## Deployment on Hugging Face Spaces
+Conversations are thread-based — the bot keeps session history so follow-up questions work naturally.
 
-### Prerequisites
+## Environment Variables
 
-1. A Hugging Face account
-2. Your Slack bot tokens (Bot Token and App Token)
-3. Your Google Gemini API key
-4. A Google AI FileSearch store with your SOP documents
+| Variable | Required | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | Yes | Google Gemini API key |
+| `SLACK_BOT_TOKEN` | Yes | Slack bot token (`xoxb-...`) |
+| `SLACK_APP_TOKEN` | Yes | Slack app-level token (`xapp-...`) for Socket Mode |
+| `SYSTEM_PROMPT_URL` | Yes | URL to fetch system instruction text from |
+| `GOOGLE_SHEET_WEBAPP_URL` | No | Google Apps Script web app URL for Q&A logging |
 
-### Deployment Steps
-
-1. **Create a new Space on Hugging Face:**
-   - Go to https://huggingface.co/new-space
-   - Choose a name for your Space
-   - Select "Docker" as the SDK
-   - Set visibility (Private recommended for internal bots)
-
-2. **Upload your files:**
-   - Upload `Dockerfile`, `app.py`, and `requirements.txt`
-   - Or connect your GitHub repository
-
-3. **Configure Environment Variables:**
-   - Go to your Space's Settings
-   - Add the following secrets:
-     - `GEMINI_API_KEY`: Your Google Gemini API key
-     - `SLACK_APP_TOKEN`: Your Slack App Token (starts with `xapp-`)
-     - `SLACK_BOT_TOKEN`: Your Slack Bot Token (starts with `xoxb-`)
-     - `SYSTEM_PROMPT_URL`: URL to fetch system instruction text
-     - `GOOGLE_SHEET_WEBAPP_URL`: (Optional) Google Apps Script web app URL for Q&A logging
-
-4. **Build and Deploy:**
-   - The Space will automatically build and deploy
-   - Check the logs to ensure the bot starts successfully
-   - Your bot will run 24/7 on HF Spaces
-
-### Local Development
+## Running Locally
 
 ```bash
-# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
+source .venv/bin/activate
 pip install -r requirements.txt
+```
 
-# Create .env file with your credentials
-# GEMINI_API_KEY=your_key_here
-# SLACK_APP_TOKEN=xapp-...
-# SLACK_BOT_TOKEN=xoxb-...
-# SYSTEM_PROMPT_URL=https://...
-# GOOGLE_SHEET_WEBAPP_URL=https://...  (optional)
+Create a `.env` file with the variables above, then:
 
-# Run the bot
+```bash
 python app.py
 ```
 
-## Important Notes
+## Deploying to HF Spaces
 
-- This bot uses Socket Mode, which maintains a persistent WebSocket connection to Slack
-- The FileSearch store must be pre-configured in Google AI Studio with a name containing `mm-sop`
-- Session histories are stored in memory and will reset on restart (TTL: 1 hour, max 20 messages per session)
-- System instruction is fetched from a remote URL on each request, allowing updates without redeployment
+1. Create a new Space on [Hugging Face](https://huggingface.co/new-space) with **Docker** SDK
+2. Upload `Dockerfile`, `app.py`, and `requirements.txt` (or connect the GitHub repo)
+3. Add the environment variables as Secrets in Space settings
+4. The Space builds and deploys automatically — the bot runs 24/7
+
+## Operational Notes
+
+- **Session TTL:** Sessions expire after 1 hour of inactivity
+- **History limit:** 20 messages (10 conversation turns) per session, oldest trimmed first
+- **FileSearch store:** The bot looks for a Google AI FileSearch store with `mm-sop` in its name — make sure your store is named accordingly
+- **System instruction:** Fetched fresh on every request from `SYSTEM_PROMPT_URL`, so edits take effect immediately
+- **Response chunking:** Long responses are split into 3000-character blocks to fit Slack's limits
+- **Q&A logging:** If `GOOGLE_SHEET_WEBAPP_URL` is set, each question and answer is logged to a Google Sheet
+- **Runtime:** Python 3.11 (see Dockerfile)
+- **Dependencies:** python-dotenv, slack-bolt, google-genai, requests
